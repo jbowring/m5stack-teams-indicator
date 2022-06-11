@@ -16,13 +16,14 @@ class Graph {
 public:
     explicit Graph(const std::string& client_id);
     Presence get_presence();
+    void authenticate();
+    void authenticate(const std::string &refresh_token);
 
 private:
     Auth auth;
     CURL *curl;
-    bool authenticated = false;
 
-    void set_refresh_token(const std::string &refresh_token);
+    Presence get_presence(bool auto_reauthenticate);
 };
 
 #endif //HOSTGRAPHCLIENT_GRAPH_H
