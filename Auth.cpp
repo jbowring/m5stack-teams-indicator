@@ -1,7 +1,3 @@
-//
-// Created by Joel on 11/06/2022.
-//
-
 #include "Auth.h"
 #include <utility>
 #include <iostream>

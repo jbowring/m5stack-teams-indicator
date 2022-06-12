@@ -1,7 +1,3 @@
-//
-// Created by Joel on 11/06/2022.
-//
-
 #ifndef HOSTGRAPHCLIENT_GRAPH_H
 #define HOSTGRAPHCLIENT_GRAPH_H
 
