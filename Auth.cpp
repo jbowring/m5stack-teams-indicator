@@ -1,17 +1,7 @@
 #include "Auth.h"
 #include <utility>
-#include <iostream>
-#include <curl/curl.h>
 #include "cJSON.h"
-#include <unistd.h>
-
-static char write_buffer[CURL_MAX_WRITE_SIZE];
-
-static size_t write_callback(char *ptr, __attribute__((unused)) size_t size, size_t nmemb, __attribute__((unused)) void *userdata) {
-    memcpy(write_buffer, ptr, nmemb);
-    write_buffer[nmemb+1] = '\0';
-    return nmemb;
-}
+#include <HTTPClient.h>
 
 class RetryOauthCodeGrant : public std::exception {};
 
@@ -19,23 +9,21 @@ class RefreshTokenExpired : public std::exception {};
 class NewDeviceCodeNeeded : public std::exception {};
 class OauthCodeGrantFailed : public RefreshTokenExpired, public NewDeviceCodeNeeded {};
 
-Auth::Auth(std::string client_id) : client_id(std::move(client_id)) {
-    this->curl = curl_easy_init();
-    curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, write_callback);
-}
+Auth::Auth(WiFiClient &client, String client_id) : client_id(client_id), wifi_client(client) {};
 
 void Auth::authenticate() {
     try {
         refresh_access_token();
     } catch (RefreshTokenExpired &refreshTokenExpired) {
         authenticate_user();
-        std::cout << "Refresh token: " << this->refresh_token << std::endl;
+        Serial.print("Refresh token: ");
+        Serial.println(this->refresh_token);
     }
 }
 
 void Auth::refresh_access_token() {
-    std::cout << "Refreshing access token" << std::endl;
-    if(this->refresh_token.empty()) {
+    Serial.println("Refreshing access token");
+    if(this->refresh_token.isEmpty()) {
         throw RefreshTokenExpired();
     }
 
@@ -46,26 +34,24 @@ void Auth::refresh_access_token() {
     );
 }
 
-void Auth::oauth_code_grant_flow(const std::string& postFields) {
+void Auth::oauth_code_grant_flow(const String& postFields) {
     cJSON *error;
     cJSON *authResponseJSON;
+    HTTPClient https;
 
     bool verified = false;
     while(!verified) {
-        curl_easy_setopt(this->curl, CURLOPT_URL, "https://login.microsoftonline.com/common/oauth2/v2.0/token");
-        curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, postFields.c_str());
-        CURLcode res = curl_easy_perform(this->curl);
-
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        https.begin(this->wifi_client, "https://login.microsoftonline.com/common/oauth2/v2.0/token");
+        int http_code = https.POST(postFields);
 
         try {
-            if (res != CURLE_OK) {
-                std::cout << "Error: oauth code grant flow returned curl code " << res << std::endl;
+            if (http_code < 0) {
+                Serial.print("Error: oauth code grant flow returned http code ");
+                Serial.println(http_code);
                 throw RetryOauthCodeGrant();
             }
 
-            authResponseJSON = cJSON_Parse(write_buffer);
+            authResponseJSON = cJSON_Parse(https.getString().c_str());
 
             if (authResponseJSON == nullptr) {
                 throw RetryOauthCodeGrant();
@@ -96,20 +82,22 @@ void Auth::oauth_code_grant_flow(const std::string& postFields) {
                 ) {
                     throw RetryOauthCodeGrant();
                 } else if (strcmp(error->valuestring, "authorization_declined") == 0) {
-                    std::cout << "User declined permissions, trying again..." << std::endl;
+                    Serial.println("User declined permissions, trying again...");
                     throw OauthCodeGrantFailed();
                 } else if (strcmp(error->valuestring, "bad_verification_code") == 0) {
-                    std::cout << "Internal error, trying again..." << std::endl;
+                    Serial.println("Internal error, trying again...");
                     throw OauthCodeGrantFailed();
                 } else if (strcmp(error->valuestring, "expired_token") == 0) {
-                    std::cout << "Session timed out, trying again..." << std::endl;
+                    Serial.println("Session timed out, trying again...");
                     throw OauthCodeGrantFailed();
                 } else {
-                    std::cout << "Got error from refresh token request: " << error->valuestring << std::endl;
+                    Serial.print("Got error from refresh token request: ");
+                    Serial.println(error->valuestring);
                     throw OauthCodeGrantFailed();
                 }
             } else {
-                std::cout << "Error: oauth code grant flow returned HTTP code " << http_code << std::endl;
+                Serial.print("Error: oauth code grant flow returned HTTP code ");
+                Serial.println(http_code);
                 throw OauthCodeGrantFailed();
             }
 
@@ -128,23 +116,21 @@ void Auth::oauth_code_grant_flow(const std::string& postFields) {
 void Auth::authenticate_user() {
     cJSON *auth_message, *device_code;
     cJSON *authResponseJSON;
-
-    std::string auth_request_fields = "client_id="+this->client_id+"&scope=offline_access%20user.read%20presence.read";
-    std::string auth_verification_fields;
+    HTTPClient https;
 
     bool authenticated = false;
     while(!authenticated) {
-        curl_easy_setopt(this->curl, CURLOPT_URL, "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode");
-        curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, auth_request_fields.c_str());
-        CURLcode res = curl_easy_perform(this->curl);
+      https.begin(this->wifi_client, "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode");
+      int http_code = https.POST("client_id="+this->client_id+"&scope=offline_access%20user.read%20presence.read");
 
         try {
-            if (res != CURLE_OK) {
-                std::cout << "Error: auth POST returned curl code " << std::to_string(res) << std::endl;
+            if (http_code < 0) {
+                Serial.print("Error: auth POST returned http code ");
+                Serial.println(http_code);
                 throw NewDeviceCodeNeeded();
             }
 
-            authResponseJSON = cJSON_Parse(write_buffer);
+            authResponseJSON = cJSON_Parse(https.getString().c_str());
             if (authResponseJSON == nullptr) {
                 throw NewDeviceCodeNeeded();
             }
@@ -159,7 +145,7 @@ void Auth::authenticate_user() {
                 throw NewDeviceCodeNeeded();
             }
 
-            std::cout << auth_message->valuestring << std::endl;
+            Serial.println(auth_message->valuestring);
 
             oauth_code_grant_flow(
                     "grant_type=urn:ietf:params:oauth:grant-type:device_code"
@@ -176,10 +162,10 @@ void Auth::authenticate_user() {
     }
 }
 
-void Auth::set_refresh_token(const std::string& token) {
+void Auth::set_refresh_token(const String& token) {
     this->refresh_token = token;
 }
 
-std::string Auth::get_access_token() {
+String Auth::get_access_token() {
     return this->access_token;
 }

@@ -18,6 +18,8 @@
 #include "ClientID.h"
 #include <WString.h>
 
+#include "Auth.h"
+
 // This is GandiStandardSSLCA2.pem, the root Certificate Authority that signed 
 // the server certifcate for the demo server https://jigsaw.w3.org in this
 // example. This certificate is valid until Sep 11 23:59:59 2024 GMT
@@ -78,13 +80,8 @@ void WiFiReconnect (arduino_event_t *event = nullptr) {
 }
 
 void setup() {
-
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
-
-  Serial.println();
-  Serial.println();
-  Serial.println();
 
   WiFi.mode(WIFI_STA);
   for(const auto& network : known_ssids) {
@@ -100,40 +97,37 @@ void setup() {
 }
 
 void loop() {
-  WiFiClientSecure *client = new WiFiClientSecure;
-  if(client) {
-    client -> setCACert(rootCACertificate);
-    {
-      // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is 
-      HTTPClient https;
+  WiFiClientSecure client;
+  client.setCACert(rootCACertificate);
+  // {
+  //   // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is 
+  //   HTTPClient https;
 
-      String auth_request_fields = "client_id="+String(clientId)+"&scope=offline_access%20user.read%20presence.read";
-  
-      if (https.begin(*client, "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode")) {  // HTTPS
-        int httpCode = https.POST(auth_request_fields);
-  
-        // httpCode will be negative on error
-        if (httpCode > 0) {
-          if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-            String payload = https.getString();
-            Serial.println(payload);
-          }
-        } else {
-          Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpCode).c_str());
-        }
-  
-        https.end();
-      } else {
-        Serial.printf("[HTTPS] Unable to connect\n");
-      }
+  //   String auth_request_fields = "client_id="+String(clientId)+"&scope=offline_access%20user.read%20presence.read";
 
-      // End extra scoping block
-    }
-  
-    delete client;
-  } else {
-    Serial.println("Unable to create client");
-  }
+  //   if (https.begin(client, "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode")) {  // HTTPS
+  //     int httpCode = https.POST(auth_request_fields);
+
+  //     // httpCode will be negative on error
+  //     if (httpCode > 0) {
+  //       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+  //         String payload = https.getString();
+  //         Serial.println(payload);
+  //       }
+  //     } else {
+  //       Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpCode).c_str());
+  //     }
+
+  //     https.end();
+  //   } else {
+  //     Serial.printf("[HTTPS] Unable to connect\n");
+  //   }
+
+    // End extra scoping block
+  // }
+
+  Auth auth(client, clientId);
+  auth.authenticate();
 
   Serial.println();
   Serial.println("Waiting 10s before the next round...");
