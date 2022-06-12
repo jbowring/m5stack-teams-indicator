@@ -1,28 +1,17 @@
-/**
-   BasicHTTPSClient.ino
-
-    Created on: 14.10.2018
-
-*/
-
 #include <Arduino.h>
-
 #include <WiFi.h>
 #include <WiFiMulti.h>
-
 #include <HTTPClient.h>
-
 #include <WiFiClientSecure.h>
+#include <WString.h>
+#include "M5Atom.h"
 
 #include "WiFiNetworks.h"
 #include "ClientID.h"
-#include <WString.h>
+#include "Graph.h"
+#include "RefreshToken.h"
 
-#include "Auth.h"
-
-// This is GandiStandardSSLCA2.pem, the root Certificate Authority that signed 
-// the server certifcate for the demo server https://jigsaw.w3.org in this
-// example. This certificate is valid until Sep 11 23:59:59 2024 GMT
+// DigiCert Global Root CA
 const char* rootCACertificate = \
 "-----BEGIN CERTIFICATE-----\n" \
 "MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh\n" \
@@ -47,6 +36,67 @@ const char* rootCACertificate = \
 "CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=\n" \
 "-----END CERTIFICATE-----\n";
 
+void drawFilledCircle(CRGB colour) {
+  M5.dis.fillpix(colour);
+  M5.dis.drawpix(0,0,0);
+  M5.dis.drawpix(0,4,0);
+  M5.dis.drawpix(4,0,0);
+  M5.dis.drawpix(4,4,0);
+}
+
+void drawHollowCircle(CRGB colour) {
+  static uint8_t pixels[] = { 1,2,3,5,9,10,14,15,19,21,22,23 };
+  static uint8_t i;
+
+  M5.dis.fillpix(0);
+
+  for(i = 0; i < sizeof(pixels); i++) {
+    M5.dis.drawpix(pixels[i], colour);
+  }
+}
+
+void drawArrow(CRGB colour) {
+  static uint8_t pixels[] = { 2,8,10,11,12,13,14,18,22 };
+  static uint8_t i;
+
+  M5.dis.fillpix(0);
+
+  for(i = 0; i < sizeof(pixels); i++) {
+    M5.dis.drawpix(pixels[i], colour);
+  }
+}
+
+void doNotDisturb() {
+  drawFilledCircle(0xff0000);
+  M5.dis.drawpix(1,2,0xffffff);
+  M5.dis.drawpix(2,2,0xffffff);
+  M5.dis.drawpix(3,2,0xffffff);
+}
+
+void busy() {
+  drawFilledCircle(0xff0000);
+}
+
+void busyOOO() {
+  drawHollowCircle(0xff0000);
+}
+
+void active() {
+  drawFilledCircle(0x00ff00);
+}
+
+void activeOOO() {
+  drawHollowCircle(0x00ff00);
+}
+
+void away() {
+  drawFilledCircle(0xffdf00);
+}
+
+void outOfOffice() {
+  drawArrow(0xff00ff);
+}
+
 // Not sure if WiFiClientSecure checks the validity date of the certificate. 
 // Setting clock just to be sure...
 void setClock() {
@@ -69,6 +119,8 @@ void setClock() {
 }
 
 WiFiMulti WiFiMulti;
+Graph graph(clientId);
+Presence presence;
 
 void WiFiReconnect (arduino_event_t *event = nullptr) {
     Serial.print("Waiting for WiFi to connect...");
@@ -80,6 +132,8 @@ void WiFiReconnect (arduino_event_t *event = nullptr) {
 }
 
 void setup() {
+  M5.begin(true, false, true);
+  delay(50);
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
 
@@ -93,43 +147,31 @@ void setup() {
   // wait for WiFi connection
   WiFiReconnect();
 
-  setClock();  
+  // setClock();  
+  graph.authenticate(refresh_token);
 }
 
 void loop() {
-  WiFiClientSecure client;
-  client.setCACert(rootCACertificate);
-  // {
-  //   // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is 
-  //   HTTPClient https;
+  presence = graph.get_presence();
 
-  //   String auth_request_fields = "client_id="+String(clientId)+"&scope=offline_access%20user.read%20presence.read";
+  Serial.print("Availability: ");
+  Serial.println(presence.availability);
 
-  //   if (https.begin(client, "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode")) {  // HTTPS
-  //     int httpCode = https.POST(auth_request_fields);
+  if (presence.availability == "Available") {
+    active();
+  } else if (presence.availability == "Away" || presence.availability == "BeRightBack") {
+    if(presence.activity == "OutOfOffice") {
+      outOfOffice();
+    } else {
+      away();
+    }
+  } else if (presence.availability == "Busy") {
+    busy();
+  } else if (presence.availability == "DoNotDisturb") {
+    doNotDisturb();
+  } else {
+    M5.dis.fillpix(0);
+  }
 
-  //     // httpCode will be negative on error
-  //     if (httpCode > 0) {
-  //       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-  //         String payload = https.getString();
-  //         Serial.println(payload);
-  //       }
-  //     } else {
-  //       Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpCode).c_str());
-  //     }
-
-  //     https.end();
-  //   } else {
-  //     Serial.printf("[HTTPS] Unable to connect\n");
-  //   }
-
-    // End extra scoping block
-  // }
-
-  Auth auth(client, clientId);
-  auth.authenticate();
-
-  Serial.println();
-  Serial.println("Waiting 10s before the next round...");
-  delay(10000);
+  delay(100);
 }

@@ -2,22 +2,25 @@
 #define HOSTGRAPHCLIENT_GRAPH_H
 
 #include "Auth.h"
-#include <string>
+#include <WString.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 
 struct Presence {
-    std::string availability, activity;
+    String availability, activity;
 };
 
 class Graph {
 public:
-    explicit Graph(const std::string& client_id);
+    Graph(const String& client_id);
     Presence get_presence();
     void authenticate();
-    void authenticate(const std::string &refresh_token);
+    void authenticate(const String &refresh_token);
 
 private:
     Auth auth;
-    CURL *curl;
+    WiFiClientSecure wifi_client;
+    HTTPClient https;
 
     Presence get_presence(bool auto_reauthenticate);
 };
