@@ -15,7 +15,6 @@ public:
     Graph(const String& client_id);
     Presence get_presence();
     void authenticate();
-    void authenticate(const String &refresh_token);
 
 private:
     Auth auth;

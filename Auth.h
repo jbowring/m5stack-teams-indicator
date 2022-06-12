@@ -8,7 +8,6 @@ class Auth {
 public:
     Auth(String client_id);
     void authenticate();
-    void set_refresh_token(const String& token);
     String get_access_token();
 
 private:

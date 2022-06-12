@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
-#include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <WString.h>
 #include "M5Atom.h"
@@ -9,7 +8,6 @@
 #include "WiFiNetworks.h"
 #include "ClientID.h"
 #include "Graph.h"
-#include "RefreshToken.h"
 
 // DigiCert Global Root CA
 const char* rootCACertificate = \
@@ -97,30 +95,7 @@ void outOfOffice() {
   drawArrow(0xff00ff);
 }
 
-// Not sure if WiFiClientSecure checks the validity date of the certificate. 
-// Setting clock just to be sure...
-void setClock() {
-  configTime(0, 0, "pool.ntp.org");
-
-  Serial.print(F("Waiting for NTP time sync: "));
-  time_t nowSecs = time(nullptr);
-  while (nowSecs < 8 * 3600 * 2) {
-    delay(500);
-    Serial.print(F("."));
-    yield();
-    nowSecs = time(nullptr);
-  }
-
-  Serial.println();
-  struct tm timeinfo;
-  gmtime_r(&nowSecs, &timeinfo);
-  Serial.print(F("Current time: "));
-  Serial.print(asctime(&timeinfo));
-}
-
 WiFiMulti WiFiMulti;
-Graph graph(clientId);
-Presence presence;
 
 void WiFiReconnect (arduino_event_t *event = nullptr) {
     Serial.print("Waiting for WiFi to connect...");
@@ -135,7 +110,6 @@ void setup() {
   M5.begin(true, false, true);
   delay(50);
   Serial.begin(115200);
-  // Serial.setDebugOutput(true);
 
   WiFi.mode(WIFI_STA);
   for(const auto& network : known_ssids) {
@@ -146,32 +120,35 @@ void setup() {
 
   // wait for WiFi connection
   WiFiReconnect();
-
-  // setClock();  
-  graph.authenticate(refresh_token);
 }
 
 void loop() {
-  presence = graph.get_presence();
+  Graph graph(clientId);
+  Presence presence;
+  graph.authenticate();
 
-  Serial.print("Availability: ");
-  Serial.println(presence.availability);
+  while(true) {
+    presence = graph.get_presence();
 
-  if (presence.availability == "Available") {
-    active();
-  } else if (presence.availability == "Away" || presence.availability == "BeRightBack") {
-    if(presence.activity == "OutOfOffice") {
-      outOfOffice();
+    Serial.print("Availability: ");
+    Serial.println(presence.availability);
+
+    if (presence.availability == "Available") {
+      active();
+    } else if (presence.availability == "Away" || presence.availability == "BeRightBack") {
+      if(presence.activity == "OutOfOffice") {
+        outOfOffice();
+      } else {
+        away();
+      }
+    } else if (presence.availability == "Busy") {
+      busy();
+    } else if (presence.availability == "DoNotDisturb") {
+      doNotDisturb();
     } else {
-      away();
+      M5.dis.fillpix(0);
     }
-  } else if (presence.availability == "Busy") {
-    busy();
-  } else if (presence.availability == "DoNotDisturb") {
-    doNotDisturb();
-  } else {
-    M5.dis.fillpix(0);
-  }
 
-  delay(100);
+    delay(100);
+  }
 }

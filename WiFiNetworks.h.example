@@ -1,0 +1,10 @@
+#include <string>
+
+struct KnownWiFiNetwork {
+  const std::string ssid, password;
+};
+
+static KnownWiFiNetwork known_ssids[] = {
+  {"SSID1", "Password1"},
+  {"SSID2", "Password2"},
+};

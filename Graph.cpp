@@ -38,11 +38,6 @@ void Graph::authenticate() {
     this->auth.authenticate();
 }
 
-void Graph::authenticate(const String& refresh_token) {
-    this->auth.set_refresh_token(refresh_token);
-    this->auth.authenticate();
-}
-
 Presence Graph::get_presence() {
     return get_presence(true);
 }

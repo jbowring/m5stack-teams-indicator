@@ -1,6 +1,9 @@
 #include "Auth.h"
 #include "cJSON.h"
 #include <HTTPClient.h>
+#include <Preferences.h>
+
+static Preferences prefs;
 
 class RetryOauthCodeGrant : public std::exception {};
 
@@ -34,7 +37,11 @@ static const char* rootCACertificate = \
 "-----END CERTIFICATE-----\n";
 
 Auth::Auth(String client_id) : client_id(client_id) {
-  this->wifi_client.setCACert(rootCACertificate);  
+  this->wifi_client.setCACert(rootCACertificate);
+  prefs.begin("refresh_token");
+  this->refresh_token = prefs.getString("refresh_token");
+  Serial.print("Got stored refresh token: ");
+  Serial.println(this->refresh_token);
 };
 
 void Auth::authenticate() {
@@ -98,6 +105,7 @@ void Auth::oauth_code_grant_flow(const String& postFields) {
 
                 this->access_token = access_token_json->valuestring;
                 this->refresh_token = refresh_token_json->valuestring;
+                prefs.putString("refresh_token", this->refresh_token);
 
                 verified = true;
             } else if (http_code >= 500) {
@@ -191,10 +199,6 @@ void Auth::authenticate_user() {
             continue;
         }
     }
-}
-
-void Auth::set_refresh_token(const String& token) {
-    this->refresh_token = token;
 }
 
 String Auth::get_access_token() {
