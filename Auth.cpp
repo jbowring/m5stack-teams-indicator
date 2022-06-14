@@ -2,6 +2,7 @@
 #include "cJSON.h"
 #include <HTTPClient.h>
 #include <Preferences.h>
+#include <Arduino.h>
 
 static Preferences prefs;
 

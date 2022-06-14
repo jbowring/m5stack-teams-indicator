@@ -2,7 +2,6 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
-#include <WString.h>
 #include "M5Atom.h"
 
 #include "WiFiNetworks.h"

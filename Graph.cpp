@@ -1,6 +1,6 @@
-#include <iostream>
 #include "Graph.h"
 #include "cJSON.h"
+#include <Arduino.h>
 
 // DigiCert Global Root G2
 static const char* rootCACertificate = \
