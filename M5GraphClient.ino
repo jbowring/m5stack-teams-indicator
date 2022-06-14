@@ -148,6 +148,6 @@ void loop() {
       M5.dis.fillpix(0);
     }
 
-    delay(100);
+    delay(250);
   }
 }
