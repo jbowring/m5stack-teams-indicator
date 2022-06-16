@@ -43,15 +43,14 @@ Presence Graph::get_presence() {
 }
 
 Presence Graph::get_presence(bool auto_reauthenticate) {
-    this->https.addHeader("Authorization", "Bearer " + this->auth.get_access_token(), false, true);
-
-    int http_code = this->https.GET();
 
     cJSON * responseJSON = nullptr;
     Presence presence;
 
     bool success = false;
     while(!success) {
+        this->https.addHeader("Authorization", "Bearer " + this->auth.get_access_token(), false, true);
+        int http_code = this->https.GET();
         try {
             if (http_code < 0) {
                 Serial.print("Error: presence GET returned http code ");
@@ -67,6 +66,10 @@ Presence Graph::get_presence(bool auto_reauthenticate) {
                 } else {
                     throw RequestFailed();
                 }
+            } else if (http_code == 429) {
+                Serial.print("Error: presence GET rate-limited! Returned HTTP code ");
+                Serial.println(http_code);
+                throw RequestFailed();
             } else if (http_code < 200 || 299 < http_code) {
                 Serial.print("Error: presence GET returned HTTP code ");
                 Serial.println(http_code);
