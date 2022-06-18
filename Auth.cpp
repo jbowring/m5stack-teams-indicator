@@ -1,5 +1,5 @@
 #include "Auth.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <Arduino.h>

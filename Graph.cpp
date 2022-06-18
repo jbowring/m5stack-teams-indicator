@@ -1,5 +1,5 @@
 #include "Graph.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include <Arduino.h>
 
 // DigiCert Global Root G2
