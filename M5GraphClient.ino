@@ -129,8 +129,7 @@ void loop() {
   while(true) {
     presence = graph.get_presence();
 
-    Serial.print("Availability: ");
-    Serial.println(presence.availability);
+    Serial.println("availability: " + presence.availability + ", activity: " + presence.activity);
 
     if (presence.availability == "Available") {
       active();

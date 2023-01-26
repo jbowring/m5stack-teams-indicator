@@ -2,6 +2,8 @@
 #include "cjson/cJSON.h"
 #include <Arduino.h>
 
+#define RETRY_AFTER_HEADER "Retry-After"
+
 // DigiCert Global Root G2
 static const char* rootCACertificate = \
 "-----BEGIN CERTIFICATE-----\n" \
@@ -29,10 +31,13 @@ static const char* rootCACertificate = \
 
 Graph::Graph(const String& client_id) : auth(client_id) {
     this->https.begin(this->wifi_client, "https://graph.microsoft.com/v1.0/me/presence");
+    const char * headers[] = {RETRY_AFTER_HEADER};
+    https.collectHeaders(headers, 1);
     this->wifi_client.setCACert(rootCACertificate);
 }
 
 class RequestFailed : public std::exception {};
+class RateLimitedError : public std::exception {};
 
 void Graph::authenticate() {
     this->auth.authenticate();
@@ -43,7 +48,6 @@ Presence Graph::get_presence() {
 }
 
 Presence Graph::get_presence(bool auto_reauthenticate) {
-
     cJSON * responseJSON = nullptr;
     Presence presence;
 
@@ -67,8 +71,15 @@ Presence Graph::get_presence(bool auto_reauthenticate) {
                     throw RequestFailed();
                 }
             } else if (http_code == 429) {
+                double retry_after = strtod(https.header(RETRY_AFTER_HEADER).c_str(), nullptr);
+
                 Serial.print("Error: presence GET rate-limited! Returned HTTP code ");
                 Serial.println(http_code);
+                Serial.print(RETRY_AFTER_HEADER" header requested ");
+                Serial.print(retry_after);
+                Serial.println("s delay, waiting...");
+
+                delay(retry_after * 1000);
                 throw RequestFailed();
             } else if (http_code < 200 || 299 < http_code) {
                 Serial.print("Error: presence GET returned HTTP code ");
